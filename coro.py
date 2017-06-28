@@ -8,7 +8,10 @@ def myrange(n):
 
 
 if __name__ == '__main__':
-    for x in myrange(10):
-        print(x)
+    # for x in myrange(10):
+    #     print(x)
+    #
+    # print(list(myrange(10)))
 
-    print(list(myrange(10)))
+    coro = myrange(10)
+    print(coro)
