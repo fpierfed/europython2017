@@ -13,16 +13,25 @@ if __name__ == '__main__':
     #
     # print(list(myrange(10)))
 
+    # coro = myrange(10)
+    # print(coro)
+    # print(coro.send(None))
+    # print(next(coro))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+    # print(coro.send(None))
+
     coro = myrange(10)
-    print(coro)
-    print(coro.send(None))
-    print(next(coro))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
-    print(coro.send(None))
+    coro.send(None)
+
+    while True:
+        try:
+            print(coro.send(None))
+        except StopIteration:
+            break
