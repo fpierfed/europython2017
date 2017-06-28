@@ -8,7 +8,7 @@ def say(msg='Hello, world'):
         if msg is None:
             break
 
-        print(f'[coroutine] Iteration {i - 1} end')
+        print(f'[coroutine] Iteration {i} end')
         i += 1
 
 
