@@ -8,6 +8,10 @@ TICK = 0.001
 RESOLUTION = 3
 
 
+def sleep(n):
+    return TICK * n
+
+
 def runner(argv, timeout=0):
     proc = subprocess.Popen(argv, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, shell=False)
@@ -24,7 +28,7 @@ def runner(argv, timeout=0):
         else:
             return proc.returncode
         # time.sleep(1)     <-- BAD idea
-        yield 20 * TICK
+        yield sleep(20)
 
 
 def defcallback(coro_id, result):
