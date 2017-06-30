@@ -9,7 +9,7 @@ RESOLUTION = 3
 
 
 def sleep(n):
-    return TICK * n
+    yield TICK * n
 
 
 def runner(argv, timeout=0):
@@ -28,7 +28,7 @@ def runner(argv, timeout=0):
         else:
             return proc.returncode
         # time.sleep(1)     <-- BAD idea
-        yield sleep(20)
+        yield from sleep(20)
 
 
 def defcallback(coro_id, result):
