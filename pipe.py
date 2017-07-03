@@ -1,4 +1,5 @@
 from collections import defaultdict
+import selectors
 import subprocess
 import time
 import uuid
@@ -59,8 +60,15 @@ class Loop:
             print(f'[loop] coro {self.coro_ids[coro]} scheduled at t={t}')
 
     def run(self):
+        sel = selectors.DefaultSelector()
+
         while self.number_of_coroutines:
             self.now = round(self.now, RESOLUTION)
+
+            events = sel.select()
+            for key, mask in events:
+                callback = key.data
+                callback(key.fileobj, mask)
 
             while self.ready_at[self.now]:
                 coro, clbk, erbk = self.ready_at[self.now].pop(0)
@@ -75,7 +83,7 @@ class Loop:
                 else:
                     self.schedule(coro, clbk, erbk, run_next)
             self.now += TICK
-            time.sleep(TICK)
+            # time.sleep(TICK)
 
 
 if __name__ == '__main__':
