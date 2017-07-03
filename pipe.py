@@ -83,7 +83,7 @@ class Loop:
                 else:
                     self.schedule(coro, clbk, erbk, run_next)
             self.now += TICK
-            # time.sleep(TICK)
+            time.sleep(TICK)
 
 
 if __name__ == '__main__':
