@@ -15,3 +15,4 @@
         * But, you do not need locks etc. if you are careful
         * You need an event loop/scheduler
     * You need a way to know when your async functions are done
+        * Futures and callbacks
