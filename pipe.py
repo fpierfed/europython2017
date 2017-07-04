@@ -14,7 +14,11 @@ def sleep(n):
 
 
 def runner(argv, timeout=0):
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE,
+    def stringify(xs):
+        return map(str, xs)
+
+    proc = subprocess.Popen(stringify(argv),
+                            stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, shell=False)
 
     t0 = time.time()
