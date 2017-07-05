@@ -17,7 +17,8 @@ def runner(argv, timeout=0):
     def stringify(xs):
         return map(str, xs)
 
-    proc = subprocess.Popen(stringify(argv),
+    argv = list(stringify(argv))
+    proc = subprocess.Popen(argv,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, shell=False)
 
@@ -29,7 +30,12 @@ def runner(argv, timeout=0):
             # Process is still running
             if timeout > 0 and time.time() - t0 >= timeout:
                 proc.kill()
-                raise Exception('Timeout exceeded')
+                stdout = proc.stdout.read()
+                stderr = proc.stderr.read()
+                raise subprocess.TimeoutExpired(cmd=' '.join(argv),
+                                                timeout=timeout,
+                                                output=stdout,
+                                                stderr=stderr)
         else:
             return proc.returncode
         # time.sleep(1)     <-- BAD idea
@@ -112,7 +118,7 @@ class Loop:
                     task.result = e.value
                     task.callback(task)
                     self.remove(task)
-                except Exception as e:
+                except subprocess.TimeoutExpired as e:
                     task.exception = e
                     task.errback(task)
                     self.remove(task)
