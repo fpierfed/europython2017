@@ -4,18 +4,18 @@ import subprocess
 import time
 
 
-TICK = 0.001
-RESOLUTION = 3
-
-
 def sleep(n):
-    yield TICK * n
+    """
+    Sleep for n iterations. Meaning we ask the event loop to wake us up
+    after n iterations, i.e. at iteration current + n + 1
+    """
+    yield n
 
 
 def monitor(task):
     while True:
         if task.result is None:
-            yield
+            yield from sleep(0)
         else:
             print(f'task {task.id} is done!')
             return task.result
@@ -97,23 +97,20 @@ class Task:
 
 class Loop:
     def __init__(self):
-        self.now = 0
+        self.tasks = []
         self.ready_at = defaultdict(list)
-        self.all_tasks = []
+        self.current_iteration = 0
 
-    def schedule(self, task, t=0):
-        t = round(t, RESOLUTION)
-        if t <= self.now:
-            t = self.now
+    def schedule(self, task, iteration=0):
+        """Schedule task at a given iteration number."""
+        if iteration is None or iteration < self.current_iteration:
+            iteration = self.current_iteration
 
-        if not isinstance(task, Task):
-            task = Task(task)
-
-        self.ready_at[t].append(task)
-        if task not in self.all_tasks:
-            self.all_tasks.append(task)
-        if t == 0:
-            print(f'[loop] task {task.id} scheduled at t={t}')
+        self.ready_at[iteration].append(task)
+        if task not in self.tasks:
+            self.tasks.append(task)
+        if iteration == 0:
+            print(f'[loop] task {task.id} scheduled at t={0}')
 
     def create_task(self, coroutine):
         task = Task(coroutine)
@@ -121,24 +118,21 @@ class Loop:
         return task
 
     def remove(self, task):
-        if task in self.all_tasks:
-            self.all_tasks.remove(task)
+        if task in self.tasks:
+            self.tasks.remove(task)
 
     def run(self):
         sel = selectors.DefaultSelector()
 
-        while self.all_tasks:
-            self.now = round(self.now, RESOLUTION)
-
+        while self.tasks:
             events = sel.select()
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)
 
-            while self.ready_at[self.now]:
-                task = self.ready_at[self.now].pop(0)
+            for task in self.ready_at[self.current_iteration]:
                 try:
-                    yielded = next(task.coroutine)
+                    run_after = next(task.coroutine)
                 except StopIteration as e:
                     task.result = e.value
                     task.callback(task)
@@ -148,12 +142,11 @@ class Loop:
                     task.errback(task)
                     self.remove(task)
                 else:
-                    if yielded is None:
-                        yielded = TICK
-                    run_next = round(self.now + yielded, RESOLUTION)
-                    self.schedule(task, t=run_next)
-            self.now += TICK
-            time.sleep(TICK)
+                    run_next = self.current_iteration + run_after + 1
+                    self.schedule(task, run_next)
+
+            self.current_iteration += 1
+            time.sleep(.01)
 
 
 if __name__ == '__main__':
