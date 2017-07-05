@@ -2,7 +2,6 @@ from collections import defaultdict
 import selectors
 import subprocess
 import time
-import uuid
 
 
 TICK = 0.001
@@ -11,6 +10,15 @@ RESOLUTION = 3
 
 def sleep(n):
     yield TICK * n
+
+
+def monitor(task):
+    while True:
+        if task.result is None:
+            yield
+        else:
+            print(f'task {task.id} is done!')
+            return task.result
 
 
 def runner(argv, timeout=0):
@@ -43,17 +51,26 @@ def runner(argv, timeout=0):
 
 
 def defcallback(task):
-    print(f'[{task.id}] result={task.result}')
+    print(f'[task {task.id}] completed with result={task.result}')
 
 
 def deferrback(task):
-    print(f'[{task.id}] exception={task.exception}')
+    print(f'[task {task.id}] raised "{task.exception}"')
 
 
 class Task:
+    instances_created = 0
+
     def __init__(self, coroutine, callback=defcallback, errback=deferrback):
         self.coroutine = coroutine
-        self.id = str(uuid.uuid4())
+        self.id = Task.instances_created
+        Task.instances_created += 1
+
+        self._result = None
+        self._exception = None
+        self.isrunning = False
+        self.cancelled = False
+
         self.callback = callback
         self.errback = errback
 
@@ -64,6 +81,8 @@ class Task:
     @result.setter
     def result(self, value):
         self._result = value
+        self.isrunning = False
+        self.cancelled = False
 
     @property
     def exception(self):
@@ -72,6 +91,8 @@ class Task:
     @exception.setter
     def exception(self, value):
         self._exception = value
+        self.isrunning = False
+        self.cancelled = True
 
 
 class Loop:
@@ -94,6 +115,11 @@ class Loop:
         if t == 0:
             print(f'[loop] task {task.id} scheduled at t={t}')
 
+    def create_task(self, coroutine):
+        task = Task(coroutine)
+        self.schedule(task)
+        return task
+
     def remove(self, task):
         if task in self.all_tasks:
             self.all_tasks.remove(task)
@@ -112,8 +138,7 @@ class Loop:
             while self.ready_at[self.now]:
                 task = self.ready_at[self.now].pop(0)
                 try:
-                    run_next = round(self.now +
-                                     next(task.coroutine), RESOLUTION)
+                    yielded = next(task.coroutine)
                 except StopIteration as e:
                     task.result = e.value
                     task.callback(task)
@@ -123,6 +148,9 @@ class Loop:
                     task.errback(task)
                     self.remove(task)
                 else:
+                    if yielded is None:
+                        yielded = TICK
+                    run_next = round(self.now + yielded, RESOLUTION)
                     self.schedule(task, t=run_next)
             self.now += TICK
             time.sleep(TICK)
@@ -131,10 +159,13 @@ class Loop:
 if __name__ == '__main__':
     loop = Loop()
 
-    loop.schedule(runner('sleep 10'.split(), timeout=5))
-    loop.schedule(runner('sleep 10'.split()))
-    loop.schedule(runner('sleep 10'.split()))
-    loop.schedule(runner('sleep 10'.split()))
-    loop.schedule(runner('sleep 10'.split()))
+    loop.create_task(runner('sleep 10'.split(), timeout=5))
+    loop.create_task(runner('sleep 10'.split()))
+    loop.create_task(runner('sleep 10'.split()))
+    loop.create_task(runner('sleep 10'.split()))
+    loop.create_task(runner('sleep 10'.split()))
+
+    task = loop.create_task(runner('sleep 10'.split()))
+    loop.create_task(monitor(task))
 
     loop.run()
