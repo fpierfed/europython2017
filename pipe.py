@@ -16,6 +16,8 @@ def sleep(n):
 
 
 def monitor(task):
+    """Monitor a task and exit once that task is done."""
+
     while True:
         if task.result is None:
             yield from sleep(0)
@@ -25,6 +27,11 @@ def monitor(task):
 
 
 def runner(argv, timeout=0):
+    """
+    Run the input command-line executable (specified in a Popen-style list) and
+    return its exit code. Optionally specify a timeout. If timeout is 0 or
+    None, simply wait until the process is done.
+    """
     def stringify(xs):
         return map(str, xs)
 
@@ -55,10 +62,10 @@ def runner(argv, timeout=0):
 
 def defcallback(task):
     """Schedule all the task children"""
+
     print(f'[task {task.id}] completed with result={task.result}')
 
     loop = get_event_loop()
-
     for child in task.children:
         print(f'[task {task.id}] scheduling child coroutine')
         loop.create_task(child)
@@ -69,6 +76,8 @@ def deferrback(task):
 
 
 class Task:
+    """Wrap a coroutine in a Task object that actis like a Future."""
+
     instances_created = 0
 
     def __init__(self, coroutine, callback=defcallback, errback=deferrback):
@@ -108,6 +117,8 @@ class Task:
 
 
 class Loop:
+    """This is the scheduler of all our Tasks."""
+
     def __init__(self):
         self.tasks = []
         self.ready_at = defaultdict(list)
@@ -115,6 +126,7 @@ class Loop:
 
     def schedule(self, task, iteration=0):
         """Schedule task at a given iteration number."""
+
         if iteration is None or iteration < self.current_iteration:
             iteration = self.current_iteration
 
@@ -125,6 +137,10 @@ class Loop:
             print(f'[loop] task {task.id} scheduled at t={0}')
 
     def create_task(self, coroutine):
+        """
+        Wrap a coroutine in a Task object and schedule it at the first possible
+        loop iteration.
+        """
         task = Task(coroutine)
 
         if self.current_iteration == 0:
@@ -136,10 +152,18 @@ class Loop:
         return task
 
     def remove(self, task):
+        """
+        Remove task from the list of all active Tasks. This is done to control
+        how long self.run() shold stick around for.
+        """
         if task in self.tasks:
             self.tasks.remove(task)
 
     def run(self):
+        """
+        Run all active Tasks, concurrently. Exit once there are no more Tasks
+        to run.
+        """
         sel = selectors.DefaultSelector()
 
         while self.tasks:
@@ -153,10 +177,6 @@ class Loop:
                     run_after = next(task.coroutine)
                 except StopIteration as e:
                     task.result = e.value
-                    # if task.children:
-                    #     import pdb
-                    #     pdb.set_trace()
-
                     task.callback(task)
                     self.remove(task)
                 except subprocess.TimeoutExpired as e:
@@ -172,7 +192,8 @@ class Loop:
 
 
 def get_event_loop():
-    """Return the Loop instance (it is a singleton)."""
+    """Return the Loop instance (it is a singleton-wannabe)."""
+
     global CURRENT_EVENT_LOOP
 
     if CURRENT_EVENT_LOOP is None:
