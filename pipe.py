@@ -4,6 +4,9 @@ import subprocess
 import time
 
 
+CURRENT_EVENT_LOOP = None
+
+
 def sleep(n):
     """
     Sleep for n iterations. Meaning we ask the event loop to wake us up
@@ -51,7 +54,14 @@ def runner(argv, timeout=0):
 
 
 def defcallback(task):
+    """Schedule all the task children"""
     print(f'[task {task.id}] completed with result={task.result}')
+
+    loop = get_event_loop()
+
+    for child in task.children:
+        print(f'[task {task.id}] scheduling child coroutine')
+        loop.create_task(child)
 
 
 def deferrback(task):
@@ -73,6 +83,8 @@ class Task:
 
         self.callback = callback
         self.errback = errback
+
+        self.children = []
 
     @property
     def result(self):
@@ -96,13 +108,6 @@ class Task:
 
 
 class Loop:
-    __instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls.__instance is None:
-            cls.__instance = super().__new__(cls, *args, **kwargs)
-        return cls.__instance
-
     def __init__(self):
         self.tasks = []
         self.ready_at = defaultdict(list)
@@ -121,7 +126,13 @@ class Loop:
 
     def create_task(self, coroutine):
         task = Task(coroutine)
-        self.schedule(task)
+
+        if self.current_iteration == 0:
+            run_at_iteration = 0
+        else:
+            run_at_iteration = self.current_iteration + 1
+
+        self.schedule(task, iteration=run_at_iteration)
         return task
 
     def remove(self, task):
@@ -142,6 +153,10 @@ class Loop:
                     run_after = next(task.coroutine)
                 except StopIteration as e:
                     task.result = e.value
+                    # if task.children:
+                    #     import pdb
+                    #     pdb.set_trace()
+
                     task.callback(task)
                     self.remove(task)
                 except subprocess.TimeoutExpired as e:
@@ -157,7 +172,12 @@ class Loop:
 
 
 def get_event_loop():
-    return Loop()
+    """Return the Loop instance (it is a singleton)."""
+    global CURRENT_EVENT_LOOP
+
+    if CURRENT_EVENT_LOOP is None:
+        CURRENT_EVENT_LOOP = Loop()
+    return CURRENT_EVENT_LOOP
 
 
 if __name__ == '__main__':
@@ -166,10 +186,10 @@ if __name__ == '__main__':
     loop.create_task(runner('sleep 10'.split(), timeout=5))
     loop.create_task(runner('sleep 10'.split()))
     loop.create_task(runner('sleep 10'.split()))
-    loop.create_task(runner('sleep 10'.split()))
-    loop.create_task(runner('sleep 10'.split()))
 
     task = loop.create_task(runner('sleep 10'.split()))
     loop.create_task(monitor(task))
 
+    task = loop.create_task(runner('sleep 10'.split()))
+    task.children.append(runner('sleep 5'.split()))
     loop.run()
