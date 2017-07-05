@@ -46,17 +46,13 @@ def defcallback(task):
     if task.cancelled():
         print(f'[task {id(task)}] was cancelled :-(')
     elif task.exception() is not None:
-        print(f'[task {id(task)}] raised "{task.exception()}"')
-    elif task.result() is not None:
+        ex = task.exception()
+        ex_type = ex.__class__.__name__
+        print(f'[task {id(task)}] raised "{ex_type}({ex})"')
+    elif task.done():       # a Task can return None
         print(f'[task {id(task)}] returned {task.result()}')
     else:
         print(f'[task {id(task)}]: we do not know what happened :-\\')
-
-    # loop = asyncio.get_event_loop()
-    #
-    # for child in task.children:
-    #     print(f'[task {id(task)}] scheduling child coroutine')
-    #     loop.create_task(child)
 
 
 if __name__ == '__main__':

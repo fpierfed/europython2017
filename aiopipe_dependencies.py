@@ -53,8 +53,10 @@ def defcallback(task):
     if task.cancelled():
         print(f'[task {id(task)}] was cancelled :-(')
     elif task.exception() is not None:
-        print(f'[task {id(task)}] raised "{task.exception()}"')
-    elif task.result() is not None:
+        ex = task.exception()
+        ex_type = ex.__class__.__name__
+        print(f'[task {id(task)}] raised "{ex_type}({ex})"')
+    elif task.done():
         print(f'[task {id(task)}] returned {task.result()}')
 
         if task in DEPENDENCIES:
