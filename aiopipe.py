@@ -4,6 +4,7 @@ import time
 
 
 async def monitor(task):
+    """Monitor a task and exit once that task is done."""
     while True:
         if not task.done():
             await asyncio.sleep(0)
@@ -13,6 +14,11 @@ async def monitor(task):
 
 
 async def runner(argv, timeout=0):
+    """
+    Run the input command-line executable (specified in a Popen-style list) and
+    return its exit code. Optionally specify a timeout. If timeout is 0 or
+    None, simply wait until the process is done.
+    """
     def stringify(xs):
         return map(str, xs)
 
@@ -42,7 +48,7 @@ async def runner(argv, timeout=0):
 
 
 def defcallback(task):
-    """Schedule all the task children but only if we terminated OK"""
+    """Simple callback: just log what happened to STDOUT."""
     if task.cancelled():
         print(f'[task {id(task)}] was cancelled :-(')
     elif task.exception() is not None:
