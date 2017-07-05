@@ -4,11 +4,12 @@ import time
 
 
 # Ugly but OK for now :-)
-TASKS = []
 DEPENDENCIES = {}
 
 
 async def monitor(task):
+    """Monitor a task and exit once that task is done."""
+
     while True:
         if not task.done():
             await asyncio.sleep(0)
@@ -18,6 +19,12 @@ async def monitor(task):
 
 
 async def runner(argv, timeout=0):
+    """
+    Run the input command-line executable (specified in a Popen-style list) and
+    return its exit code. Optionally specify a timeout. If timeout is 0 or
+    None, simply wait until the process is done.
+    """
+
     def stringify(xs):
         return map(str, xs)
 
@@ -47,9 +54,10 @@ async def runner(argv, timeout=0):
 
 
 def defcallback(task):
-    global TASKS
-
-    """Schedule all the task children but only if we terminated OK"""
+    """
+    Not-so-simple-callback: log what happened to STDOUT and schedule any
+    task dependency.
+    """
     if task.cancelled():
         print(f'[task {id(task)}] was cancelled :-(')
     elif task.exception() is not None:
@@ -66,7 +74,6 @@ def defcallback(task):
                 print(f'[task {id(task)}] scheduling child coroutine')
                 task = loop.create_task(coroutine)
                 task.add_done_callback(defcallback)
-                TASKS.append(task)
     else:
         print(f'[task {id(task)}]: we do not know what happened :-\\')
 
@@ -74,25 +81,20 @@ def defcallback(task):
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
 
-    TASKS = [
-        loop.create_task(runner('sleep 10'.split(), timeout=5)),
-        loop.create_task(runner('sleep 10'.split())),
-        loop.create_task(runner('sleep 10'.split())),
-    ]
+    loop.create_task(runner('sleep 10'.split(), timeout=5)),
+    loop.create_task(runner('sleep 10'.split())),
+    loop.create_task(runner('sleep 10'.split())),
 
     task = loop.create_task(runner('sleep 10'.split()))
     monitor_task = loop.create_task(monitor(task))
-    TASKS += [task, monitor_task]
 
     task = loop.create_task(runner('sleep 10'.split()))
     DEPENDENCIES[task] = [runner('sleep 5'.split()), ]
-    TASKS.append(task)
 
     # Set my callback to all tasks
-    for task in TASKS:
+    for task in asyncio.Task.all_tasks():
         task.add_done_callback(defcallback)
 
-    loop.run_until_complete(asyncio.wait(TASKS))
     while True:
         pending = [t for t in asyncio.Task.all_tasks() if not t.done()]
         if pending:
