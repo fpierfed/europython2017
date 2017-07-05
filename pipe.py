@@ -96,6 +96,13 @@ class Task:
 
 
 class Loop:
+    __instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance is None:
+            cls.__instance = super().__new__(cls, *args, **kwargs)
+        return cls.__instance
+
     def __init__(self):
         self.tasks = []
         self.ready_at = defaultdict(list)
@@ -149,8 +156,12 @@ class Loop:
             time.sleep(.01)
 
 
+def get_event_loop():
+    return Loop()
+
+
 if __name__ == '__main__':
-    loop = Loop()
+    loop = get_event_loop()
 
     loop.create_task(runner('sleep 10'.split(), timeout=5))
     loop.create_task(runner('sleep 10'.split()))
