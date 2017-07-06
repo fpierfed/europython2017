@@ -3,10 +3,6 @@ import subprocess
 import time
 
 
-# Ugly but OK for now :-)
-DEPENDENCIES = {}
-
-
 async def monitor(task):
     """Monitor a task and exit once that task is done."""
 
@@ -67,10 +63,10 @@ def defcallback(task):
     elif task.done():
         print(f'[task {id(task)}] returned {task.result()}')
 
-        if task in DEPENDENCIES:
+        if hasattr(task, 'children'):
             loop = asyncio.get_event_loop()
 
-            for coroutine in DEPENDENCIES[task]:
+            for coroutine in task.children:
                 print(f'[task {id(task)}] scheduling child coroutine')
                 task = loop.create_task(coroutine)
                 task.add_done_callback(defcallback)
@@ -78,8 +74,19 @@ def defcallback(task):
         print(f'[task {id(task)}]: we do not know what happened :-\\')
 
 
+class MyTask(asyncio.Task):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.children = []
+
+
+def my_task_factory(loop, coro):
+    return MyTask(coro)
+
+
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
+    loop.set_task_factory(my_task_factory)
 
     loop.create_task(runner('sleep 10'.split(), timeout=5)),
     loop.create_task(runner('sleep 10'.split())),
@@ -89,7 +96,7 @@ if __name__ == '__main__':
     monitor_task = loop.create_task(monitor(task))
 
     task = loop.create_task(runner('sleep 10'.split()))
-    DEPENDENCIES[task] = [runner('sleep 5'.split()), ]
+    task.children.append(runner('sleep 5'.split()))
 
     # Set my callback to all tasks
     for task in asyncio.Task.all_tasks():
