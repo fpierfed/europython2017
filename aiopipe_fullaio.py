@@ -1,3 +1,7 @@
+"""
+Just like aiopipe.py but without using the subprocess module to spawn external
+processes. This only uses facilities in the asyncio module.
+"""
 import asyncio
 
 

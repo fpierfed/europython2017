@@ -1,3 +1,10 @@
+"""
+Like aiopipe.py but with task dependencies. In order to support that, one needs
+to sunblass asyncio.Task and specify a custom task factory.
+
+Of course, another way would be to create a DAG and schedule that. In that case
+the DAG coroutine would then schedule its own tasks at the right times.
+"""
 import asyncio
 import subprocess
 import time

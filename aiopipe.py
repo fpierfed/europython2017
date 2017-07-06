@@ -1,3 +1,7 @@
+"""
+aiopipe.py is a direct translation of pipe.py into asyncio. There is no
+support for task dependencies.
+"""
 import asyncio
 import subprocess
 import time

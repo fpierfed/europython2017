@@ -1,3 +1,8 @@
+"""
+Simple async framework and command-line runner application built on top of the
+framework. One can specify simple task dependencies. This does not make use of
+asyncio.
+"""
 from collections import defaultdict
 import selectors
 import subprocess

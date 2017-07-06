@@ -1,3 +1,6 @@
+"""
+Show how to run blocking functions in a separate thread of process.
+"""
 import asyncio
 import concurrent.futures as cf
 import time

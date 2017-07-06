@@ -1,3 +1,8 @@
+"""
+Simple example of generator function in pure Python.
+"""
+
+
 def say(msg='Hello, world'):
     i = 0
 

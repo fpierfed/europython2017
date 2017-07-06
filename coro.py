@@ -1,3 +1,8 @@
+"""
+Simple example of a generator function in pure Python.
+"""
+
+
 def myrange(n):
     assert n >= 0
 
