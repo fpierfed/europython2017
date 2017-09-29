@@ -4,6 +4,7 @@ framework. One can specify simple task dependencies. This does not make use of
 asyncio.
 """
 from collections import defaultdict
+from functools import partial
 import selectors
 import subprocess
 import time
@@ -68,6 +69,10 @@ def runner(argv, timeout=0):
 def defcallback(task):
     """Schedule all the task children"""
 
+    if task.exception:
+        print(f'[task {task.id}] raised {task.exception}')
+        return
+
     print(f'[task {task.id}] completed with result={task.result}')
 
     loop = get_event_loop()
@@ -76,16 +81,12 @@ def defcallback(task):
         loop.create_task(child)
 
 
-def deferrback(task):
-    print(f'[task {task.id}] raised "{task.exception}"')
-
-
 class Task:
     """Wrap a coroutine in a Task object that actis like a Future."""
 
     instances_created = 0
 
-    def __init__(self, coroutine, callback=defcallback, errback=deferrback):
+    def __init__(self, coroutine, callback=defcallback):
         self.coroutine = coroutine
         self.id = Task.instances_created
         Task.instances_created += 1
@@ -95,8 +96,7 @@ class Task:
         self.isrunning = False
         self.cancelled = False
 
-        self.callback = callback
-        self.errback = errback
+        self.callbacks = [callback, ]
 
         self.children = []
 
@@ -120,6 +120,15 @@ class Task:
         self.isrunning = False
         self.cancelled = True
 
+    def add_done_callback(self, callback):
+        self.callbacks.append(callback)
+
+    def remove_done_callback(self, callback):
+        try:
+            self.callbacks.remove(callback)
+        except:
+            pass
+
 
 class Loop:
     """This is the scheduler of all our Tasks."""
@@ -128,6 +137,7 @@ class Loop:
         self.tasks = []
         self.ready_at = defaultdict(list)
         self.current_iteration = 0
+        self.stop = False
 
     def schedule(self, task, iteration=0):
         """Schedule task at a given iteration number."""
@@ -138,8 +148,7 @@ class Loop:
         self.ready_at[iteration].append(task)
         if task not in self.tasks:
             self.tasks.append(task)
-        if iteration == 0:
-            print(f'[loop] task {task.id} scheduled at t={0}')
+            print(f'[loop] task {task.id} scheduled at t={iteration}')
 
     def create_task(self, coroutine):
         """
@@ -164,36 +173,83 @@ class Loop:
         if task in self.tasks:
             self.tasks.remove(task)
 
-    def run(self):
+    def run_forever(self):
         """
-        Run all active Tasks, concurrently. Exit once there are no more Tasks
-        to run.
+        Run all active Tasks, concurrently forever.
         """
         sel = selectors.DefaultSelector()
+        self.stop = False
 
-        while self.tasks:
+        while not self.stop:
+            # Here is where one would process socket/file descritor events.
             events = sel.select()
             for key, mask in events:
                 callback = key.data
                 callback(key.fileobj, mask)
 
-            for task in self.ready_at[self.current_iteration]:
-                try:
-                    run_after = next(task.coroutine)
-                except StopIteration as e:
-                    task.result = e.value
-                    task.callback(task)
-                    self.remove(task)
-                except subprocess.TimeoutExpired as e:
-                    task.exception = e
-                    task.errback(task)
-                    self.remove(task)
-                else:
-                    run_next = self.current_iteration + run_after + 1
-                    self.schedule(task, run_next)
+            if self.tasks:
+                for task in self.ready_at[self.current_iteration]:
+                    try:
+                        run_after = next(task.coroutine)
+                    except StopIteration as e:
+                        task.result = e.value
+                        for callback in task.callbacks:
+                            callback(task)
+                        self.remove(task)
+                    except subprocess.TimeoutExpired as e:
+                        task.exception = e
+                        for callback in task.callbacks:
+                            callback(task)
+                        self.remove(task)
+                    else:
+                        run_next = self.current_iteration + run_after + 1
+                        self.schedule(task, run_next)
 
             self.current_iteration += 1
             time.sleep(.01)
+
+    def run_until_complete(self, coroutine):
+        task = self.create_task(coroutine)
+        task.add_done_callback(self._stop_callback)
+        self.run_forever()
+        task.remove_done_callback(self._stop_callback)
+        return task.result
+
+    def _stop_callback(self, task):
+        """Just stop our loop."""
+        self.stop = True
+
+
+def wait(coroutines, loop=None):
+    """Stick around until all coroutines are done."""
+
+    counter = len(coroutines)
+    tasks = []
+
+    def _stop_loop_with_counter_callback(task, loop):
+        nonlocal counter
+
+        counter -= 1
+        if counter == 0:
+            loop.stop = True
+
+    if loop is None:
+        loop = get_event_loop()
+
+    clbk = partial(_stop_loop_with_counter_callback, loop=loop)
+    for coro in coroutines:
+        task = loop.create_task(coro)
+        task.add_done_callback(clbk)
+        tasks.append(task)
+
+    yield from sleep(0)
+
+    while counter:
+        yield from sleep(0)
+
+    for task in tasks:
+        task.remove_done_callback(clbk)
+    return tasks
 
 
 def get_event_loop():
@@ -208,6 +264,8 @@ def get_event_loop():
 
 if __name__ == '__main__':
     loop = get_event_loop()
+    loop.run_until_complete(wait([runner(('sleep', '5')),
+                                  runner(('sleep', '5'))]))
 
     loop.create_task(runner('sleep 10'.split(), timeout=5))
     loop.create_task(runner('sleep 10'.split()))
@@ -218,4 +276,4 @@ if __name__ == '__main__':
 
     task = loop.create_task(runner('sleep 10'.split()))
     task.children.append(runner('sleep 5'.split()))
-    loop.run()
+    loop.run_forever()
