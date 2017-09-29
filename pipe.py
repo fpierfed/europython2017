@@ -264,9 +264,13 @@ def get_event_loop():
 
 if __name__ == '__main__':
     loop = get_event_loop()
+
+    print('[*] Testing loop.run_until_complete()')
     loop.run_until_complete(wait([runner(('sleep', '5')),
                                   runner(('sleep', '5'))]))
 
+    print()
+    print('[*] Testing loop.run_forever()')
     loop.create_task(runner('sleep 10'.split(), timeout=5))
     loop.create_task(runner('sleep 10'.split()))
     loop.create_task(runner('sleep 10'.split()))
@@ -276,4 +280,8 @@ if __name__ == '__main__':
 
     task = loop.create_task(runner('sleep 10'.split()))
     task.children.append(runner('sleep 5'.split()))
-    loop.run_forever()
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        loop.stop = True
+        print("[*] That's all, folks!")
